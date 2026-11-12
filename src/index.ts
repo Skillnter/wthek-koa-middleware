@@ -1,5 +1,4 @@
-import type Koa from "koa";
-import type { Context, Middleware, Next } from "koa";
+import type { Context, default as Koa, Middleware, Next } from "koa";
 import { KitHttpError, KitGeneralError } from "http-error-kit";
 import {
   INTERNAL_SERVER_ERROR,
@@ -40,71 +39,61 @@ export interface IKitKoaMiddlewareOptions {
 }
 
 /**
- * Internal factory creating the Koa middleware function.
+ * Helper to log errors according to options.
  */
-const createMiddleware = (
-  options?: IKitKoaMiddlewareOptions,
-): Middleware => {
-  const {
-    log = false,
-    handleUnknownErrors = false,
-    emitAppError = false,
-  } = options ?? {};
-
-  return async (ctx: Context, next: Next): Promise<void> => {
-    try {
-      await next();
-    } catch (error: unknown) {
-      if (log) {
-        if (typeof log === "function") {
-          log(error, ctx);
-        } else {
-          console.error(error);
-        }
-      }
-
-      if (emitAppError && ctx.app && typeof ctx.app.emit === "function") {
-        ctx.app.emit("error", error, ctx);
-      }
-
-      if (ctx.headerSent) {
-        return;
-      }
-
-      if (error instanceof KitHttpError || error instanceof KitGeneralError) {
-        // eslint-disable-next-line
-        const statusCode = (error.getInputs()?.statusCode ??
-          INTERNAL_SERVER_ERROR) as number;
-        const payload =
-          typeof error.toJSON === "function" ? error.toJSON() : error;
-
-        ctx.status = statusCode;
-        ctx.body = payload;
-        return;
-      }
-
-      if (handleUnknownErrors) {
-        ctx.status = INTERNAL_SERVER_ERROR;
-        ctx.body = {
-          message: getStatusDescription(INTERNAL_SERVER_ERROR),
-          statusCode: INTERNAL_SERVER_ERROR as number,
-        };
-        return;
-      }
-
-      throw error;
-    }
-  };
+const logError = (
+  error: unknown,
+  ctx: Context,
+  log?: boolean | ((error: unknown, ctx: Context) => void),
+): void => {
+  if (!log) {
+    return;
+  }
+  if (typeof log === "function") {
+    log(error, ctx);
+    return;
+  }
+  console.error(error);
 };
 
 /**
- * Callable interface for KitKoaMiddleware supporting both direct registration
- * and middleware factory usage.
+ * Helper to emit application error events if configured.
  */
-export interface IKitKoaMiddleware {
-  (app: Koa, options?: IKitKoaMiddlewareOptions): void;
-  (options?: IKitKoaMiddlewareOptions): Middleware;
-}
+const emitError = (
+  error: unknown,
+  ctx: Context,
+  emitAppError?: boolean,
+): void => {
+  if (emitAppError && ctx.app && typeof ctx.app.emit === "function") {
+    ctx.app.emit("error", error, ctx);
+  }
+};
+
+/**
+ * Helper to format and assign Kit error payloads to context.
+ */
+const handleKitError = (
+  error: KitHttpError | KitGeneralError,
+  ctx: Context,
+): void => {
+  const inputs = error.getInputs();
+  const statusCode = (inputs?.statusCode ?? INTERNAL_SERVER_ERROR) as number;
+  const payload = typeof error.toJSON === "function" ? error.toJSON() : error;
+
+  ctx.status = statusCode;
+  ctx.body = payload;
+};
+
+/**
+ * Helper to format structured 500 response for unknown errors.
+ */
+const handleUnknownError = (ctx: Context): void => {
+  ctx.status = INTERNAL_SERVER_ERROR;
+  ctx.body = {
+    message: getStatusDescription(INTERNAL_SERVER_ERROR),
+    statusCode: INTERNAL_SERVER_ERROR as number,
+  };
+};
 
 /**
  * Koa error-handling middleware for applications powered by `http-error-kit`.
@@ -115,13 +104,9 @@ export interface IKitKoaMiddleware {
  * In accordance with Koa's onion architecture, this middleware wraps downstream
  * handlers in a `try ... catch` block.
  *
- * When an error is caught:
- * - If it is an instance of `KitHttpError` or `KitGeneralError`, it sets `ctx.status`
- *   to the error's status code and `ctx.body` to the serialized JSON payload.
- * - If it is an unrecognised error and `handleUnknownErrors` is enabled, it sets
- *   `ctx.status = 500` and `ctx.body` to a structured 500 JSON payload.
- * - If `handleUnknownErrors` is disabled, the unrecognised error is re-thrown.
- * - If `ctx.headerSent` is true, the error handling is skipped to avoid writing headers twice.
+ * @param {Koa | IKitKoaMiddlewareOptions} [appOrOptions] Koa application instance or options object.
+ * @param {IKitKoaMiddlewareOptions} [options] Options when app is passed as first argument.
+ * @returns {Middleware} A Koa-compatible middleware function.
  *
  * @example
  * ```typescript
@@ -137,14 +122,44 @@ export interface IKitKoaMiddleware {
  * app.use(KitKoaMiddleware({ log: true, handleUnknownErrors: true }));
  * ```
  */
-export const KitKoaMiddleware: IKitKoaMiddleware = ((
+export const KitKoaMiddleware = (
   appOrOptions?: Koa | IKitKoaMiddlewareOptions,
   options?: IKitKoaMiddlewareOptions,
-): Middleware | void => {
+): Middleware => {
   if (appOrOptions && typeof (appOrOptions as Koa).use === "function") {
-    (appOrOptions as Koa).use(createMiddleware(options));
-    return;
+    const middleware = KitKoaMiddleware(options);
+    (appOrOptions as Koa).use(middleware);
+    return middleware;
   }
 
-  return createMiddleware(appOrOptions as IKitKoaMiddlewareOptions);
-}) as IKitKoaMiddleware;
+  const {
+    log = false,
+    handleUnknownErrors = false,
+    emitAppError = false,
+  } = (appOrOptions as IKitKoaMiddlewareOptions) ?? {};
+
+  return async (ctx: Context, next: Next): Promise<void> => {
+    try {
+      await next();
+    } catch (error: unknown) {
+      logError(error, ctx, log);
+      emitError(error, ctx, emitAppError);
+
+      if (ctx.headerSent) {
+        return;
+      }
+
+      if (error instanceof KitHttpError || error instanceof KitGeneralError) {
+        handleKitError(error, ctx);
+        return;
+      }
+
+      if (handleUnknownErrors) {
+        handleUnknownError(ctx);
+        return;
+      }
+
+      throw error;
+    }
+  };
+};
