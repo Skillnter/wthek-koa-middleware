@@ -9,12 +9,13 @@ _Built for applications powered by [http-error-kit][http-error-kit], this middle
 ![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/skillnter/wthek-koa-middleware/main.yml)
 [![npm version](https://img.shields.io/npm/v/%40wthek%2Fkoa-middleware?color=brightgreen)](https://www.npmjs.com/package/@wthek/koa-middleware)
 [![GitHub license](https://img.shields.io/github/license/skillnter/wthek-koa-middleware?color=brightgreen)](LICENSE)
+![NPM Type Definitions](https://img.shields.io/npm/types/%40wthek%2Fkoa-middleware)
 [![GitHub Issues](https://img.shields.io/github/issues/Skillnter/wthek-koa-middleware)](https://github.com/Skillnter/wthek-koa-middleware/issues)
 ![npm](https://img.shields.io/npm/dy/%40wthek%2Fkoa-middleware)
 [![Bundle Size](https://img.shields.io/bundlephobia/minzip/%40wthek%2Fkoa-middleware)](https://bundlephobia.com/package/%40wthek%2Fkoa-middleware)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/8cb84abac51c4e67b0e8c7a0730d1a40)](https://app.codacy.com/gh/Skillnter/wthek-koa-middleware/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
 [![Codacy Badge](https://app.codacy.com/project/badge/Coverage/8cb84abac51c4e67b0e8c7a0730d1a40)](https://app.codacy.com/gh/Skillnter/wthek-koa-middleware/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_coverage)
-[![Socket Badge](https://socket.dev/api/badge/npm/package/@wthek/koa-middleware/1.0.0)](https://socket.dev/npm/package/@wthek/koa-middleware/overview/1.0.0)
+[![Socket Badge](https://socket.dev/api/badge/npm/package/@wthek/koa-middleware/)](https://socket.dev/npm/package/@wthek/koa-middleware/overview/)
 [![Github Sponsors](https://img.shields.io/badge/GitHub%20Sponsors-30363D?&logo=GitHub-Sponsors&logoColor=EA4AAA)](https://github.com/sponsors/Skillnter)
 [![Open Collective](https://img.shields.io/badge/Open%20Collective-3385FF?logo=open-collective&logoColor=white)](https://opencollective.com/skillnter)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?&logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/skillnter)
@@ -37,6 +38,7 @@ _Built for applications powered by [http-error-kit][http-error-kit], this middle
 - [Usage](#usage)
 - [Options](#options)
 - [Custom Formatting with KitHttpErrorConfig](#custom-formatting-with-kithttperrorconfig)
+- [AI Agent Integration](#ai-agent-integration)
 - [Explore More WTHek Extensions](#explore-more-wthek-extensions)
 - [People](#people)
 - [Donations](#donations)
@@ -140,6 +142,17 @@ KitHttpErrorConfig.configureFormatter(
     details,
   }),
 );
+```
+
+## AI Agent Integration
+
+When building with AI coding assistants (Claude Code, Cursor, GitHub Copilot, Antigravity, Devin), add the following directive to your project's `.cursorrules`, `.github/copilot-instructions.md`, or system prompt:
+
+```markdown
+### Koa Error Handling Rule
+- Always throw semantic error classes from `http-error-kit` (e.g., `BadRequestError`, `NotFoundError`, `UnauthorizedError`) inside downstream Koa middleware and routes.
+- In Koa bootstrap, register `@wthek/koa-middleware` at the top of the middleware stack: `KitKoaMiddleware(app, { handleUnknownErrors: true })`.
+- If using centralized monitoring (Sentry, Datadog), enable `emitAppError: true` so `app.on("error")` continues to receive errors.
 ```
 
 ## Explore More WTHek Extensions

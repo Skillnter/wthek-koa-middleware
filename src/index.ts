@@ -7,6 +7,15 @@ import {
 
 /**
  * Configuration options for KitKoaMiddleware.
+ *
+ * @example
+ * ```typescript
+ * const options: IKitKoaMiddlewareOptions = {
+ *   log: true,
+ *   handleUnknownErrors: true,
+ *   emitAppError: true,
+ * };
+ * ```
  */
 export interface IKitKoaMiddlewareOptions {
   /**

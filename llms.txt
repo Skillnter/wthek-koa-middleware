@@ -1,0 +1,56 @@
+# @wthek/koa-middleware
+
+> Production-safe Koa error-handling middleware for `http-error-kit`.
+
+## Overview
+`@wthek/koa-middleware` catches `KitHttpError` and `KitGeneralError` instances thrown in Koa downstream middleware and routes, automatically setting the HTTP status code and serializing the error into a structured JSON payload. It respects Koa's onion architecture, guards against header-sent errors (`ctx.headerSent`), provides configurable logging, optionally emits Koa `error` events for central telemetry, and handles unknown exceptions.
+
+## Installation
+```bash
+npm install @wthek/koa-middleware http-error-kit http-response-status-code
+```
+
+## Quick Start
+```typescript
+import Koa from "koa";
+import { KitKoaMiddleware } from "@wthek/koa-middleware";
+import { BadRequestError, NotFoundError } from "http-error-kit";
+
+const app = new Koa();
+
+// Pattern 1: Direct registration (app passed as first argument)
+KitKoaMiddleware(app, { log: true, handleUnknownErrors: true, emitAppError: true });
+
+// Pattern 2: Standard Koa app.use()
+// app.use(KitKoaMiddleware({ log: true, handleUnknownErrors: true }));
+
+app.use(async (ctx) => {
+  if (ctx.path === "/api/users") {
+    throw new BadRequestError("Query parameter missing");
+  }
+  throw new NotFoundError("Route not found");
+});
+
+app.listen(3000);
+```
+
+## API Reference
+
+### `KitKoaMiddleware(appOrOptions?: Koa | IKitKoaMiddlewareOptions, options?: IKitKoaMiddlewareOptions)`
+Returns or registers a Koa middleware: `(ctx: Context, next: Next) => Promise<void>`.
+- If a Koa app is passed as the first parameter, it calls `app.use()` automatically.
+- Otherwise, returns standard middleware for `app.use(KitKoaMiddleware(options))`.
+
+#### Options (`IKitKoaMiddlewareOptions`)
+- `log` (`boolean | ((error: unknown, ctx: Context) => void)`, default: `false`):
+  When `true`, logs via `console.error`. When a function is provided, calls custom logger.
+- `handleUnknownErrors` (`boolean`, default: `false`):
+  When `true`, catches non-Kit errors and assigns a structured 500 JSON response instead of re-throwing downstream.
+- `emitAppError` (`boolean`, default: `false`):
+  When `true`, emits `ctx.app.emit("error", error, ctx)` for central error listeners (Sentry, Datadog).
+
+## Safety Rules for AI Agents
+1. Place `app.use(KitKoaMiddleware(...))` at the very beginning of the middleware pipeline to wrap all downstream handlers.
+2. Throw errors directly from `http-error-kit` (e.g., `throw new NotFoundError(...)`) inside downstream handlers.
+3. Koa async functions automatically catch thrown errors and return control up the onion stack.
+
